@@ -7,8 +7,9 @@
   coreutils,
   installShellFiles,
   libiconv,
-  mdbook,
   nix-update-script,
+  buildPackages,
+  withDocs ? true,
 }:
 
 rustPlatform.buildRustPackage rec {
@@ -29,10 +30,7 @@ rustPlatform.buildRustPackage rec {
 
   cargoHash = "sha256-y6wBFjBOeymbXUIeflQ35FxQRMPlDvB0Zeo2bQeZjJ0=";
 
-  nativeBuildInputs = [
-    installShellFiles
-    mdbook
-  ];
+  nativeBuildInputs = [ installShellFiles ];
   buildInputs = lib.optionals stdenv.hostPlatform.isDarwin [ libiconv ];
 
   preCheck = ''
@@ -61,23 +59,6 @@ rustPlatform.buildRustPackage rec {
     ./fix-just-path-in-tests.patch
   ];
 
-  postBuild = ''
-    cargo run --package generate-book
-
-    mkdir -p completions man
-
-    cargo run -- --man > man/just.1
-
-    for shell in bash fish zsh; do
-        cargo run -- --completions $shell > completions/just.$shell
-    done
-
-    # No linkcheck in sandbox
-    echo 'optional = true' >> book/en/book.toml
-    mdbook build book/en
-    find .
-  '';
-
   checkFlags = [
     "--skip=backticks::trailing_newlines_are_stripped" # Wants to use python3 as alternate shell
     "--skip=choose::invoke_error_function" # wants JUST_CHOOSER to be fzf
@@ -87,16 +68,41 @@ rustPlatform.buildRustPackage rec {
     "--skip=shebang::run_shebang" # test case very rarely fails with "Text file busy"
   ];
 
-  postInstall = ''
-    mkdir -p $doc/share/doc/$name
-    mv ./book/en/build/html $doc/share/doc/$name
-    installManPage man/just.1
+  postInstall =
+    let
+      just = "${stdenv.hostPlatform.emulator buildPackages} $out/bin/just";
+      doc = buildPackages.rustPlatform.buildRustPackage {
+        inherit
+          pname
+          version
+          src
+          cargoHash
+          ;
+        nativeBuildInputs = [ buildPackages.mdbook ];
+        doCheck = false;
+        buildPhase = ''
+          cargo run --package generate-book
+          echo 'optional = true' >> book/en/book.toml
+          mdbook build book/en
+        '';
+        installPhase = ''
+          mv ./book/en/build/html $out
+        '';
+      };
+    in
+    lib.optionalString withDocs ''
+      mkdir -p $doc/share/doc
+      ln -s ${doc} $doc/share/doc/$name
+    ''
+    + lib.optionalString (stdenv.hostPlatform.emulatorAvailable buildPackages) ''
+      ${just} --man > ./just.1
+      installManPage ./just.1
 
-    installShellCompletion --cmd just \
-      --bash completions/just.bash \
-      --fish completions/just.fish \
-      --zsh completions/just.zsh
-  '';
+      installShellCompletion --cmd just \
+        --bash <(${just} --completions bash) \
+        --fish <(${just} --completions fish) \
+        --zsh <(${just} --completions zsh)
+    '';
 
   setupHook = ./setup-hook.sh;
 
