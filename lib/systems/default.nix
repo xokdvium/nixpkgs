@@ -41,11 +41,7 @@ let
     Note that this does not canonicalize the systems, so you'll want to make sure
     both arguments have been `elaborate`-d.
   */
-  equals =
-    let
-      removeFunctions = a: filterAttrs (_: v: !isFunction v) a;
-    in
-    a: b: removeFunctions a == removeFunctions b;
+  equals = a: b: a.__attrsWithoutFunctions == b.__attrsWithoutFunctions;
 
   /**
     List of all Nix system doubles the nixpkgs flake will expose the package set
@@ -563,12 +559,18 @@ let
             GOARM = toString (lib.intersectLists [ (final.parsed.cpu.version or "") ] [ "5" "6" "7" ]);
           };
         };
+      removeFunctions = a: filterAttrs (_: v: !isFunction v) a;
     in
     assert final.useAndroidPrebuilt -> final.isAndroid;
     assert foldl (pass: { assertion, message }: if assertion final then pass else throw message) true (
       final.parsed.abi.assertions or [ ]
     );
-    final;
+    final
+    // {
+      # Memoise elaborated attributes without functions to avoid doing
+      # unnecessary work in lib.systems.equals.
+      __attrsWithoutFunctions = removeFunctions final;
+    };
 
 in
 
