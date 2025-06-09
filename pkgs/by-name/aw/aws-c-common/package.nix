@@ -3,6 +3,7 @@
   stdenv,
   fetchFromGitHub,
   cmake,
+  ctestCheckHook,
   nix,
 }:
 
@@ -33,19 +34,12 @@ stdenv.mkDerivation rec {
   setupHook = ./setup-hook.sh;
 
   # Prevent the execution of tests known to be flaky.
-  preCheck =
-    let
-      ignoreTests = [
-        "promise_test_multiple_waiters"
-      ];
-    in
-    ''
-      cat <<EOW >CTestCustom.cmake
-      SET(CTEST_CUSTOM_TESTS_IGNORE ${toString ignoreTests})
-      EOW
-    '';
+  disabledTests = [
+    "promise_test_multiple_waiters"
+  ];
 
   doCheck = true;
+  nativeCheckInputs = [ ctestCheckHook ];
 
   passthru.tests = {
     inherit nix;
