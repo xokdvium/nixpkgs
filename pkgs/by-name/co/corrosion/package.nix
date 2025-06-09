@@ -6,6 +6,7 @@
   cmake,
   rustc,
   libiconv,
+  ctestCheckHook,
 }:
 
 stdenv.mkDerivation rec {
@@ -28,26 +29,15 @@ stdenv.mkDerivation rec {
   ];
 
   doCheck = true;
-
-  checkPhase =
-    let
-      excludedTests = [
-        "cbindgen_rust2cpp_build"
-        "cbindgen_rust2cpp_run_cpp-exe"
-        "hostbuild_build"
-        "hostbuild_run_rust-host-program"
-        "parse_target_triple_build"
-        "rustup_proxy_build"
-      ];
-      excludedTestsRegex = lib.concatStringsSep "|" excludedTests;
-    in
-    ''
-      runHook preCheck
-
-      ctest -E "${excludedTestsRegex}"
-
-      runHook postCheck
-    '';
+  nativeCheckInputs = [ ctestCheckHook ];
+  disabledTests = [
+    "cbindgen_rust2cpp_build"
+    "cbindgen_rust2cpp_run_cpp-exe"
+    "hostbuild_build"
+    "hostbuild_run_rust-host-program"
+    "parse_target_triple_build"
+    "rustup_proxy_build"
+  ];
 
   meta = with lib; {
     description = "Tool for integrating Rust into an existing CMake project";
