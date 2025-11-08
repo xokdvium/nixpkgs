@@ -1,26 +1,7 @@
 name: Eval
 
 on:
-  workflow_call:
-    inputs:
-      artifact-prefix:
-        required: true
-        type: string
-      mergedSha:
-        required: true
-        type: string
-      targetSha:
-        type: string
-      systems:
-        required: true
-        type: string
-      testVersions:
-        required: false
-        default: false
-        type: boolean
-    secrets:
-      CACHIX_AUTH_TOKEN:
-        required: true
+  push:
 
 permissions: {}
 
@@ -30,7 +11,6 @@ defaults:
 
 jobs:
   versions:
-    if: inputs.testVersions
     runs-on: ubuntu-24.04-arm
     outputs:
       versions: ${{ steps.versions.outputs.versions }}
@@ -62,11 +42,10 @@ jobs:
   eval:
     runs-on: ubuntu-24.04-arm
     needs: versions
-    if: ${{ !cancelled() && !failure() }}
     strategy:
       fail-fast: false
       matrix:
-        system: ${{ fromJSON(inputs.systems) }}
+        system: ["x86_64-linux"]
         version:
           - "" # Default Eval triggering rebuild labels and such.
           - ${{ fromJSON(needs.versions.outputs.versions || '[]') }} # Only for ci/pinned.json updates.
@@ -163,7 +142,6 @@ jobs:
   compare:
     runs-on: ubuntu-24.04-arm
     needs: [eval]
-    if: ${{ !cancelled() && !failure() }}
     permissions:
       statuses: write
     timeout-minutes: 5
@@ -335,7 +313,6 @@ jobs:
             core.summary.write()
 
   misc:
-    if: ${{ github.event_name != 'push' }}
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 10
     steps:
